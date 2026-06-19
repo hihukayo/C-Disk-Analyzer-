@@ -197,9 +197,11 @@ void print_children(const wchar_t *parent_path, long long root_total,
             print_children(fullpath, root_total, bar_width, new_prefix);
         }
 
-        // 目录后空一行分隔（延续树状线保持 │ 连续）
-        if (curr->is_dir && curr->next != NULL)
-            wprintf(L"%s\n", tree_prefix);
+        if (curr->is_dir && curr->next != NULL) {
+            wchar_t bp[MAX_PATH];
+            _snwprintf(bp, MAX_PATH, L"%s│   ", tree_prefix);
+            wprintf(L"%s\n", bp);
+        }
 
         item *tmp = curr;
         curr = curr->next;
