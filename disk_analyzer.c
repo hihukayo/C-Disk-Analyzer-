@@ -190,8 +190,8 @@ void print_children(const wchar_t *parent_path, long long parent_total, int bar_
             print_children(fullpath, curr->size, bar_width, new_prefix);
         }
 
-        // 根层级兄弟项间空一行，子目录内部紧凑
-        if (curr->next != NULL && tree_prefix[0] == L'\0')
+        // 有内容的目录后空一行分隔，文件间紧凑不换行
+        if (curr->is_dir && curr->size > 0 && curr->next != NULL)
             wprintf(L"\n");
 
         item *tmp = curr;
