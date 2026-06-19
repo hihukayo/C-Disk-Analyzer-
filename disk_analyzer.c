@@ -125,8 +125,8 @@ void print_item(const wchar_t *name, int is_dir,
     if (bar_len < 0) bar_len = 0;
     if (bar_len > bar_width) bar_len = bar_width;
 
-    // 第一行：大小 + 柱子 + 百分比（不变）
-    wprintf(L" %*s  ", SIZE_WIDTH, size_str);
+    // 第一行：树状前缀 + 大小 + 柱子 + 百分比
+    wprintf(L"%s %*s  ", tree_prefix, SIZE_WIDTH, size_str);
     for (int i = 0; i < bar_len; i++) wprintf(L"█");
     for (int i = bar_len; i < bar_width; i++) wprintf(L" ");
     wprintf(L" %6.2f%%\n", ratio * 100.0);
@@ -190,9 +190,7 @@ void print_children(const wchar_t *parent_path, long long parent_total, int bar_
             print_children(fullpath, curr->size, bar_width, new_prefix);
         }
 
-        // 如果后面还有兄弟项，额外输出一个空行（视觉上空一行）
-        if (curr->next != NULL)
-            wprintf(L"\n");
+        // 递归子目录（已在上面处理）
 
         item *tmp = curr;
         curr = curr->next;
