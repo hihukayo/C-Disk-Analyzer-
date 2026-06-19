@@ -10,7 +10,6 @@ A lightweight Windows command-line tool that recursively scans a directory and d
 Disk Usage Analyzer
 Root: C:\Users\Example
 -----------------------------------------------------------------------
-[  2.34 GB] ██████████████████████████████████████████████████████████ 100.00%
 [  1.20 GB] ████████████████████████████████████                       51.28%
   Documents/
 [   512 MB] ████████████████████                                       21.88%
