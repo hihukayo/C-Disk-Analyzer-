@@ -113,38 +113,24 @@ static item* insert_sorted(item *head, item *new_it) {
     return head;
 }
 
-/* 输出一项（单行）：树状线 + 名称 + [大小] + (仅文件: 柱子 百分比) */
+/* 输出一项（单行）：树状线 + 名称 + 大小 + 百分比 */
 void print_item(const wchar_t *name, int is_dir,
-                long long size, long long root_total, int bar_width,
+                long long size, long long root_total,
                 const wchar_t *tree_prefix, const wchar_t *connector) {
     wchar_t size_str[32];
     format_size(size, size_str, 32);
 
     double ratio = (root_total > 0) ? (double)size / root_total : 0.0;
 
-    // 树状线 + 名称（目录加 /）
-    wprintf(L"%s%s%s%s", tree_prefix, connector, name, is_dir ? L"/" : L"");
-
-    if (!is_dir) {
-        // 文件：大小 + 柱状图 + 百分比
-        int bar_len = (int)(ratio * bar_width);
-        if (bar_len < 0) bar_len = 0;
-        if (bar_len > bar_width) bar_len = bar_width;
-
-        wprintf(L"  %*s  ", SIZE_WIDTH, size_str);
-        for (int i = 0; i < bar_len; i++) wprintf(L"█");
-        for (int i = bar_len; i < bar_width; i++) wprintf(L" ");
-        wprintf(L" %6.2f%%", ratio * 100.0);
-    } else {
-        // 目录：仅大小 + 百分比，无柱子
-        wprintf(L"  %*s    %6.2f%%", SIZE_WIDTH, size_str, ratio * 100.0);
-    }
-    wprintf(L"\n");
+    // 树状线 + 名称（目录加 /）+ 大小 + 百分比（统一对齐）
+    wprintf(L"%s%s%s%s  %*s    %6.2f%%\n",
+            tree_prefix, connector, name, is_dir ? L"/" : L"",
+            SIZE_WIDTH, size_str, ratio * 100.0);
 }
 
 /* 第二遍：递归输出子项 */
 void print_children(const wchar_t *parent_path, long long root_total,
-                    int bar_width, const wchar_t *tree_prefix) {
+                    const wchar_t *tree_prefix) {
     wchar_t search_path[MAX_PATH];
     _snwprintf(search_path, MAX_PATH, L"%s\\*", parent_path);
 
@@ -185,7 +171,7 @@ void print_children(const wchar_t *parent_path, long long root_total,
     while (curr) {
         const wchar_t *connector = (curr->next != NULL) ? L"├── " : L"└── ";
         print_item(curr->name, curr->is_dir,
-                   curr->size, root_total, bar_width,
+                   curr->size, root_total,
                    tree_prefix, connector);
 
         if (curr->is_dir) {
@@ -194,7 +180,7 @@ void print_children(const wchar_t *parent_path, long long root_total,
             _snwprintf(new_prefix, MAX_PATH, L"%s%s", tree_prefix, suffix);
 
             _snwprintf(fullpath, MAX_PATH, L"%s\\%s", parent_path, curr->name);
-            print_children(fullpath, root_total, bar_width, new_prefix);
+            print_children(fullpath, root_total, new_prefix);
         }
 
         if (curr->is_dir && curr->next != NULL) {
@@ -227,15 +213,6 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    // 自动计算柱子宽度
-    CONSOLE_SCREEN_BUFFER_INFO csbi;
-    int columns = 80;
-    if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi))
-        columns = csbi.dwSize.X;
-    int bar_width = columns - 30;
-    if (bar_width < 10) bar_width = 10;
-    if (bar_width > 60) bar_width = 60;
-
     // 打印头部
     wprintf(L"\nDisk Usage Analyzer\n");
     wprintf(L"Root: %s\n", real_path);
@@ -244,8 +221,8 @@ int main(void) {
     // 计算总大小
     long long total = cache_sizes(real_path);
 
-    // 输出子项（根层级用 │ 保证全行连续）
-    print_children(real_path, total, bar_width, L"│   ");
+    // 输出子项
+    print_children(real_path, total, L"│   ");
 
     // 底部信息
     wprintf(L"-------------------------------------------------------------------------\n");
