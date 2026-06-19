@@ -190,9 +190,9 @@ void print_children(const wchar_t *parent_path, long long parent_total, int bar_
             print_children(fullpath, curr->size, bar_width, new_prefix);
         }
 
-        // 有内容的目录后空一行分隔，文件间紧凑不换行
+        // 有内容的目录后空一行分隔（带上树状前缀保持线条连续）
         if (curr->is_dir && curr->size > 0 && curr->next != NULL)
-            wprintf(L"\n");
+            wprintf(L"%s\n", tree_prefix);
 
         item *tmp = curr;
         curr = curr->next;
@@ -236,7 +236,7 @@ int main(void) {
     long long total = cache_sizes(real_path);
 
     // 直接输出子项（不输出根目录行）
-    print_children(real_path, total, bar_width, L"");
+    print_children(real_path, total, bar_width, L"│   ");
 
     // 底部信息
     wprintf(L"-------------------------------------------------------------------------\n");
