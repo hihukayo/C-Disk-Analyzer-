@@ -10,23 +10,8 @@
 #include <fcntl.h>
 #include <shellapi.h>
 
-/* 固定大小字段宽度（如 "1024.00 TB" 需要 10 字符） */
+/* 固定大小字段宽度 */
 #define SIZE_WIDTH 10
-#define MAX_TREE_DEPTH 20   /* 树状线最大深度上限 */
-
-static int g_max_depth = 1;   /* 第一遍扫描到的实际最大深度 */
-
-/* 构建树状前缀：depth 层 "│   " */
-static void build_prefix(int depth, wchar_t *buf) {
-    buf[0] = L'\0';
-    for (int i = 0; i < depth; i++)
-        wcscat(buf, L"│   ");
-}
-
-/* 构建到最大深度的完整填充前缀（用于空白行的 │ 连续） */
-static void build_full_prefix(wchar_t *buf) {
-    build_prefix(g_max_depth, buf);
-}
 
 /* ---------- 宽字符缓存链表 ---------- */
 typedef struct size_entry {
@@ -77,8 +62,7 @@ void format_size(long long bytes, wchar_t *buf, size_t bufsize) {
 }
 
 /* 第一遍：递归计算并缓存所有目录大小 */
-long long cache_sizes(const wchar_t *path, int depth) {
-    if (depth > g_max_depth) g_max_depth = depth;
+long long cache_sizes(const wchar_t *path) {
     wchar_t search_path[MAX_PATH];
     _snwprintf(search_path, MAX_PATH, L"%s\\*", path);
 
@@ -95,7 +79,7 @@ long long cache_sizes(const wchar_t *path, int depth) {
         if (wcscmp(fd.name, L".") == 0 || wcscmp(fd.name, L"..") == 0) continue;
         _snwprintf(fullpath, MAX_PATH, L"%s\\%s", path, fd.name);
         if (fd.attrib & _A_SUBDIR) {
-            total += cache_sizes(fullpath, depth + 1);
+            total += cache_sizes(fullpath);
         } else {
             struct _stat64 st;
             if (_wstat64(fullpath, &st) == 0)
@@ -129,30 +113,36 @@ static item* insert_sorted(item *head, item *new_it) {
     return head;
 }
 
-/* 输出一行：第一行 [大小] 柱子 百分比，第二行 树状线 + 文件名 */
+/* 输出一项（单行）：树状线 + 名称 + [大小] + (仅文件: 柱子 百分比) */
 void print_item(const wchar_t *name, int is_dir,
                 long long size, long long root_total, int bar_width,
                 const wchar_t *tree_prefix, const wchar_t *connector) {
     wchar_t size_str[32];
     format_size(size, size_str, 32);
 
-    // 柱状图/百分比统一相对于根总大小，确保所有层级柱子可比
     double ratio = (root_total > 0) ? (double)size / root_total : 0.0;
-    int bar_len = (int)(ratio * bar_width);
-    if (bar_len < 0) bar_len = 0;
-    if (bar_len > bar_width) bar_len = bar_width;
 
-    // 第一行：树状前缀 + 大小 + 柱子 + 百分比
-    wprintf(L"%s %*s  ", tree_prefix, SIZE_WIDTH, size_str);
-    for (int i = 0; i < bar_len; i++) wprintf(L"█");
-    for (int i = bar_len; i < bar_width; i++) wprintf(L" ");
-    wprintf(L" %6.2f%%\n", ratio * 100.0);
+    // 树状线 + 名称（目录加 /）
+    wprintf(L"%s%s%s%s", tree_prefix, connector, name, is_dir ? L"/" : L"");
 
-    // 第二行：树状前缀 + 连接线 + 文件名
-    wprintf(L"%s%s%s%s\n", tree_prefix, connector, name, is_dir ? L"/" : L"");
+    if (!is_dir) {
+        // 文件：大小 + 柱状图 + 百分比
+        int bar_len = (int)(ratio * bar_width);
+        if (bar_len < 0) bar_len = 0;
+        if (bar_len > bar_width) bar_len = bar_width;
+
+        wprintf(L"  %*s  ", SIZE_WIDTH, size_str);
+        for (int i = 0; i < bar_len; i++) wprintf(L"█");
+        for (int i = bar_len; i < bar_width; i++) wprintf(L" ");
+        wprintf(L" %6.2f%%", ratio * 100.0);
+    } else {
+        // 目录：仅大小 + 百分比，无柱子
+        wprintf(L"  %*s    %6.2f%%", SIZE_WIDTH, size_str, ratio * 100.0);
+    }
+    wprintf(L"\n");
 }
 
-/* 第二遍：递归输出子项，控制空行 */
+/* 第二遍：递归输出子项 */
 void print_children(const wchar_t *parent_path, long long root_total,
                     int bar_width, const wchar_t *tree_prefix) {
     wchar_t search_path[MAX_PATH];
@@ -207,13 +197,6 @@ void print_children(const wchar_t *parent_path, long long root_total,
             print_children(fullpath, root_total, bar_width, new_prefix);
         }
 
-        // 有内容的目录后空一行分隔（前缀填充到最大深度，保持线条连续）
-        if (curr->is_dir && curr->size > 0 && curr->next != NULL) {
-            wchar_t prefix[4 * MAX_TREE_DEPTH + 1];
-            build_full_prefix(prefix);
-            wprintf(L"%s\n", prefix);
-        }
-
         item *tmp = curr;
         curr = curr->next;
         free(tmp);
@@ -238,12 +221,12 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    // 自动计算柱子宽度（终端列数 - 左边固定部分 - 安全余量）
+    // 自动计算柱子宽度
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     int columns = 80;
     if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi))
         columns = csbi.dwSize.X;
-    int bar_width = columns - 30;  // 30 为 [大小] + 百分比 + 缩进留空
+    int bar_width = columns - 30;
     if (bar_width < 10) bar_width = 10;
     if (bar_width > 60) bar_width = 60;
 
@@ -252,11 +235,10 @@ int main(void) {
     wprintf(L"Root: %s\n", real_path);
     wprintf(L"-------------------------------------------------------------------------\n");
 
-    // 计算总大小（首次遍历，追踪最大深度）
-    g_max_depth = 1;
-    long long total = cache_sizes(real_path, 1);
+    // 计算总大小
+    long long total = cache_sizes(real_path);
 
-    // 直接输出子项（不输出根目录行）
+    // 输出子项
     print_children(real_path, total, bar_width, L"");
 
     // 底部信息
