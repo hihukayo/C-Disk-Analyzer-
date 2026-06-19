@@ -1,0 +1,16 @@
+# 编译产物
+*.exe
+*.obj
+*.o
+*.lib
+*.dll
+*.pdb
+
+# IDE / 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 其他
+*.log
