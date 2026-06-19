@@ -197,6 +197,10 @@ void print_children(const wchar_t *parent_path, long long root_total,
             print_children(fullpath, root_total, bar_width, new_prefix);
         }
 
+        // 目录后空一行分隔（延续树状线保持 │ 连续）
+        if (curr->is_dir && curr->next != NULL)
+            wprintf(L"%s\n", tree_prefix);
+
         item *tmp = curr;
         curr = curr->next;
         free(tmp);
@@ -238,8 +242,8 @@ int main(void) {
     // 计算总大小
     long long total = cache_sizes(real_path);
 
-    // 输出子项
-    print_children(real_path, total, bar_width, L"");
+    // 输出子项（根层级用 │ 保证全行连续）
+    print_children(real_path, total, bar_width, L"│   ");
 
     // 底部信息
     wprintf(L"-------------------------------------------------------------------------\n");
