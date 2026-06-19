@@ -1,23 +1,25 @@
 # Disk Usage Analyzer / 磁盘空间分析器
 
-A lightweight Windows command-line tool that recursively scans a directory and displays its space usage in a clean, tree-like visual format — sorted by size with bar charts and percentage breakdowns.
+A lightweight Windows command-line tool that recursively scans a directory and displays its space usage in a clean tree view — sorted by size with percentage breakdowns.
 
-轻量的 Windows 命令行工具，递归扫描目录并以树状可视化形式展示磁盘空间占用——按大小排序，附带柱状图和百分比。
+轻量的 Windows 命令行工具，递归扫描目录并以树状可视化形式展示磁盘空间占用——按大小排序，附带百分比。
 
 ## Preview / 效果预览
 
 ```
 Disk Usage Analyzer
 Root: C:\Users\Example
------------------------------------------------------------------------
-[  1.20 GB] ████████████████████████████████████                       51.28%
-  Documents/
-[   512 MB] ████████████████████                                       21.88%
-  Videos/
-[   256 MB] ██████████                                                 10.94%
-  Downloads/
-...
------------------------------------------------------------------------
+-------------------------------------------------------------------------
+│   ├── Videos/      1.20 GB      51.28%
+│   │   ├── movie.mkv    800.00 MB      34.19%
+│   │   └── clip.mp4     400.00 MB      17.09%
+│   
+│   ├── Documents/    512.00 MB      21.88%
+│   │   └── report.pdf     512.00 MB      21.88%
+│   
+│   └── Downloads/    256.00 MB      10.94%
+│       └── setup.exe      256.00 MB      10.94%
+-------------------------------------------------------------------------
 Total: 2.34 GB
 ```
 
@@ -25,10 +27,9 @@ Total: 2.34 GB
 
 - **Recursive scanning** — traverse all subdirectories automatically
 - **Size-sorted output** — larger items displayed first
-- **Visual bar chart** — relative size visualization with Unicode block characters (█)
+- **Tree structure** — hierarchical view with continuous `│` / `├──` / `└──` connectors
 - **Human-readable sizes** — B, KB, MB, GB, TB auto-scaled
-- **Nested tree view** — hierarchical display with indentation
-- **Terminal-aware layout** — bar width auto-adjusts to console width
+- **Relative percentages** — each item's share of the total scanned size
 - **Cached results** — directory sizes computed once and reused
 
 ## Usage / 使用方法
