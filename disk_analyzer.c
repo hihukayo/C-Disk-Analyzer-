@@ -126,7 +126,7 @@ void print_item(const wchar_t *name, int is_dir,
     if (bar_len > bar_width) bar_len = bar_width;
 
     // 第一行：大小 + 柱子 + 百分比（不变）
-    wprintf(L"[%*s] ", SIZE_WIDTH, size_str);
+    wprintf(L" %*s  ", SIZE_WIDTH, size_str);
     for (int i = 0; i < bar_len; i++) wprintf(L"█");
     for (int i = bar_len; i < bar_width; i++) wprintf(L" ");
     wprintf(L" %6.2f%%\n", ratio * 100.0);
