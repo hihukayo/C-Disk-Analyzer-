@@ -131,14 +131,15 @@ static item* insert_sorted(item *head, item *new_it) {
 
 /* 输出一行：第一行 [大小] 柱子 百分比，第二行 树状线 + 文件名 */
 void print_item(const wchar_t *name, int is_dir,
-                long long size, long long parent_total, int bar_width,
+                long long size, long long root_total, int bar_width,
                 int depth, const wchar_t *connector) {
     wchar_t size_str[32];
     format_size(size, size_str, 32);
     wchar_t prefix[4 * MAX_TREE_DEPTH + 1];
     build_prefix(depth, prefix);
 
-    double ratio = (parent_total > 0) ? (double)size / parent_total : 1.0;
+    // 柱状图/百分比统一相对于根总大小，确保所有层级柱子可比
+    double ratio = (root_total > 0) ? (double)size / root_total : 0.0;
     int bar_len = (int)(ratio * bar_width);
     if (bar_len < 0) bar_len = 0;
     if (bar_len > bar_width) bar_len = bar_width;
@@ -154,7 +155,7 @@ void print_item(const wchar_t *name, int is_dir,
 }
 
 /* 第二遍：递归输出子项，控制空行 */
-void print_children(const wchar_t *parent_path, long long parent_total,
+void print_children(const wchar_t *parent_path, long long root_total,
                     int bar_width, int depth) {
     wchar_t search_path[MAX_PATH];
     _snwprintf(search_path, MAX_PATH, L"%s\\*", parent_path);
@@ -196,7 +197,7 @@ void print_children(const wchar_t *parent_path, long long parent_total,
     while (curr) {
         const wchar_t *connector = (curr->next != NULL) ? L"├── " : L"└── ";
         print_item(curr->name, curr->is_dir,
-                   curr->size, parent_total, bar_width,
+                   curr->size, root_total, bar_width,
                    depth, connector);
 
         if (curr->is_dir) {
