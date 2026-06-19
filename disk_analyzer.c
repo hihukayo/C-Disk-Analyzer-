@@ -132,11 +132,9 @@ static item* insert_sorted(item *head, item *new_it) {
 /* 输出一行：第一行 [大小] 柱子 百分比，第二行 树状线 + 文件名 */
 void print_item(const wchar_t *name, int is_dir,
                 long long size, long long root_total, int bar_width,
-                int depth, const wchar_t *connector) {
+                const wchar_t *tree_prefix, const wchar_t *connector) {
     wchar_t size_str[32];
     format_size(size, size_str, 32);
-    wchar_t prefix[4 * MAX_TREE_DEPTH + 1];
-    build_prefix(depth, prefix);
 
     // 柱状图/百分比统一相对于根总大小，确保所有层级柱子可比
     double ratio = (root_total > 0) ? (double)size / root_total : 0.0;
@@ -145,18 +143,18 @@ void print_item(const wchar_t *name, int is_dir,
     if (bar_len > bar_width) bar_len = bar_width;
 
     // 第一行：树状前缀 + 大小 + 柱子 + 百分比
-    wprintf(L"%s %*s  ", prefix, SIZE_WIDTH, size_str);
+    wprintf(L"%s %*s  ", tree_prefix, SIZE_WIDTH, size_str);
     for (int i = 0; i < bar_len; i++) wprintf(L"█");
     for (int i = bar_len; i < bar_width; i++) wprintf(L" ");
     wprintf(L" %6.2f%%\n", ratio * 100.0);
 
     // 第二行：树状前缀 + 连接线 + 文件名
-    wprintf(L"%s%s%s%s\n", prefix, connector, name, is_dir ? L"/" : L"");
+    wprintf(L"%s%s%s%s\n", tree_prefix, connector, name, is_dir ? L"/" : L"");
 }
 
 /* 第二遍：递归输出子项，控制空行 */
 void print_children(const wchar_t *parent_path, long long root_total,
-                    int bar_width, int depth) {
+                    int bar_width, const wchar_t *tree_prefix) {
     wchar_t search_path[MAX_PATH];
     _snwprintf(search_path, MAX_PATH, L"%s\\*", parent_path);
 
@@ -198,11 +196,15 @@ void print_children(const wchar_t *parent_path, long long root_total,
         const wchar_t *connector = (curr->next != NULL) ? L"├── " : L"└── ";
         print_item(curr->name, curr->is_dir,
                    curr->size, root_total, bar_width,
-                   depth, connector);
+                   tree_prefix, connector);
 
         if (curr->is_dir) {
+            const wchar_t *suffix = (curr->next != NULL) ? L"│   " : L"    ";
+            wchar_t new_prefix[MAX_PATH];
+            _snwprintf(new_prefix, MAX_PATH, L"%s%s", tree_prefix, suffix);
+
             _snwprintf(fullpath, MAX_PATH, L"%s\\%s", parent_path, curr->name);
-            print_children(fullpath, curr->size, bar_width, depth + 1);
+            print_children(fullpath, root_total, bar_width, new_prefix);
         }
 
         // 有内容的目录后空一行分隔（前缀填充到最大深度，保持线条连续）
@@ -255,7 +257,7 @@ int main(void) {
     long long total = cache_sizes(real_path, 1);
 
     // 直接输出子项（不输出根目录行）
-    print_children(real_path, total, bar_width, 1);
+    print_children(real_path, total, bar_width, L"");
 
     // 底部信息
     wprintf(L"-------------------------------------------------------------------------\n");
