@@ -12,6 +12,21 @@
 
 /* 固定大小字段宽度（如 "1024.00 TB" 需要 10 字符） */
 #define SIZE_WIDTH 10
+#define MAX_TREE_DEPTH 20   /* 树状线最大深度上限 */
+
+static int g_max_depth = 1;   /* 第一遍扫描到的实际最大深度 */
+
+/* 构建树状前缀：depth 层 "│   " */
+static void build_prefix(int depth, wchar_t *buf) {
+    buf[0] = L'\0';
+    for (int i = 0; i < depth; i++)
+        wcscat(buf, L"│   ");
+}
+
+/* 构建到最大深度的完整填充前缀（用于空白行的 │ 连续） */
+static void build_full_prefix(wchar_t *buf) {
+    build_prefix(g_max_depth, buf);
+}
 
 /* ---------- 宽字符缓存链表 ---------- */
 typedef struct size_entry {
@@ -62,7 +77,8 @@ void format_size(long long bytes, wchar_t *buf, size_t bufsize) {
 }
 
 /* 第一遍：递归计算并缓存所有目录大小 */
-long long cache_sizes(const wchar_t *path) {
+long long cache_sizes(const wchar_t *path, int depth) {
+    if (depth > g_max_depth) g_max_depth = depth;
     wchar_t search_path[MAX_PATH];
     _snwprintf(search_path, MAX_PATH, L"%s\\*", path);
 
@@ -79,7 +95,7 @@ long long cache_sizes(const wchar_t *path) {
         if (wcscmp(fd.name, L".") == 0 || wcscmp(fd.name, L"..") == 0) continue;
         _snwprintf(fullpath, MAX_PATH, L"%s\\%s", path, fd.name);
         if (fd.attrib & _A_SUBDIR) {
-            total += cache_sizes(fullpath);
+            total += cache_sizes(fullpath, depth + 1);
         } else {
             struct _stat64 st;
             if (_wstat64(fullpath, &st) == 0)
@@ -116,9 +132,11 @@ static item* insert_sorted(item *head, item *new_it) {
 /* 输出一行：第一行 [大小] 柱子 百分比，第二行 树状线 + 文件名 */
 void print_item(const wchar_t *name, int is_dir,
                 long long size, long long parent_total, int bar_width,
-                const wchar_t *tree_prefix, const wchar_t *connector) {
+                int depth, const wchar_t *connector) {
     wchar_t size_str[32];
     format_size(size, size_str, 32);
+    wchar_t prefix[4 * MAX_TREE_DEPTH + 1];
+    build_prefix(depth, prefix);
 
     double ratio = (parent_total > 0) ? (double)size / parent_total : 1.0;
     int bar_len = (int)(ratio * bar_width);
@@ -126,18 +144,18 @@ void print_item(const wchar_t *name, int is_dir,
     if (bar_len > bar_width) bar_len = bar_width;
 
     // 第一行：树状前缀 + 大小 + 柱子 + 百分比
-    wprintf(L"%s %*s  ", tree_prefix, SIZE_WIDTH, size_str);
+    wprintf(L"%s %*s  ", prefix, SIZE_WIDTH, size_str);
     for (int i = 0; i < bar_len; i++) wprintf(L"█");
     for (int i = bar_len; i < bar_width; i++) wprintf(L" ");
     wprintf(L" %6.2f%%\n", ratio * 100.0);
 
     // 第二行：树状前缀 + 连接线 + 文件名
-    wprintf(L"%s%s%s%s\n", tree_prefix, connector, name, is_dir ? L"/" : L"");
+    wprintf(L"%s%s%s%s\n", prefix, connector, name, is_dir ? L"/" : L"");
 }
 
 /* 第二遍：递归输出子项，控制空行 */
-void print_children(const wchar_t *parent_path, long long parent_total, int bar_width,
-                    const wchar_t *tree_prefix) {
+void print_children(const wchar_t *parent_path, long long parent_total,
+                    int bar_width, int depth) {
     wchar_t search_path[MAX_PATH];
     _snwprintf(search_path, MAX_PATH, L"%s\\*", parent_path);
 
@@ -179,20 +197,19 @@ void print_children(const wchar_t *parent_path, long long parent_total, int bar_
         const wchar_t *connector = (curr->next != NULL) ? L"├── " : L"└── ";
         print_item(curr->name, curr->is_dir,
                    curr->size, parent_total, bar_width,
-                   tree_prefix, connector);
+                   depth, connector);
 
         if (curr->is_dir) {
-            const wchar_t *suffix = (curr->next != NULL) ? L"│   " : L"    ";
-            wchar_t new_prefix[MAX_PATH];
-            _snwprintf(new_prefix, MAX_PATH, L"%s%s", tree_prefix, suffix);
-
             _snwprintf(fullpath, MAX_PATH, L"%s\\%s", parent_path, curr->name);
-            print_children(fullpath, curr->size, bar_width, new_prefix);
+            print_children(fullpath, curr->size, bar_width, depth + 1);
         }
 
-        // 有内容的目录后空一行分隔（带上树状前缀保持线条连续）
-        if (curr->is_dir && curr->size > 0 && curr->next != NULL)
-            wprintf(L"%s\n", tree_prefix);
+        // 有内容的目录后空一行分隔（前缀填充到最大深度，保持线条连续）
+        if (curr->is_dir && curr->size > 0 && curr->next != NULL) {
+            wchar_t prefix[4 * MAX_TREE_DEPTH + 1];
+            build_full_prefix(prefix);
+            wprintf(L"%s\n", prefix);
+        }
 
         item *tmp = curr;
         curr = curr->next;
@@ -232,11 +249,12 @@ int main(void) {
     wprintf(L"Root: %s\n", real_path);
     wprintf(L"-------------------------------------------------------------------------\n");
 
-    // 计算总大小（首次遍历）
-    long long total = cache_sizes(real_path);
+    // 计算总大小（首次遍历，追踪最大深度）
+    g_max_depth = 1;
+    long long total = cache_sizes(real_path, 1);
 
     // 直接输出子项（不输出根目录行）
-    print_children(real_path, total, bar_width, L"│   ");
+    print_children(real_path, total, bar_width, 1);
 
     // 底部信息
     wprintf(L"-------------------------------------------------------------------------\n");
