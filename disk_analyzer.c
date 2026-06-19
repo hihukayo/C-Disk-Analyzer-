@@ -113,9 +113,10 @@ static item* insert_sorted(item *head, item *new_it) {
     return head;
 }
 
-/* 输出一行：第一行 [大小] 柱子 百分比，第二行 缩进 + 文件名 */
-void print_item(int depth, const wchar_t *name, int is_dir,
-                long long size, long long parent_total, int bar_width) {
+/* 输出一行：第一行 [大小] 柱子 百分比，第二行 树状线 + 文件名 */
+void print_item(const wchar_t *name, int is_dir,
+                long long size, long long parent_total, int bar_width,
+                const wchar_t *tree_prefix, const wchar_t *connector) {
     wchar_t size_str[32];
     format_size(size, size_str, 32);
 
@@ -124,18 +125,19 @@ void print_item(int depth, const wchar_t *name, int is_dir,
     if (bar_len < 0) bar_len = 0;
     if (bar_len > bar_width) bar_len = bar_width;
 
-    // 第一行：大小 + 柱子 + 百分比（右对齐 6 位）
+    // 第一行：大小 + 柱子 + 百分比（不变）
     wprintf(L"[%*s] ", SIZE_WIDTH, size_str);
     for (int i = 0; i < bar_len; i++) wprintf(L"█");
     for (int i = bar_len; i < bar_width; i++) wprintf(L" ");
     wprintf(L" %6.2f%%\n", ratio * 100.0);
 
-    // 第二行：缩进 + 文件名（目录后加 '/'）
-    wprintf(L"%*s%s%s\n", depth * 2, L"", name, is_dir ? L"/" : L"");
+    // 第二行：树状前缀 + 连接线 + 文件名
+    wprintf(L"%s%s%s%s\n", tree_prefix, connector, name, is_dir ? L"/" : L"");
 }
 
 /* 第二遍：递归输出子项，控制空行 */
-void print_children(const wchar_t *parent_path, int depth, long long parent_total, int bar_width) {
+void print_children(const wchar_t *parent_path, long long parent_total, int bar_width,
+                    const wchar_t *tree_prefix) {
     wchar_t search_path[MAX_PATH];
     _snwprintf(search_path, MAX_PATH, L"%s\\*", parent_path);
 
@@ -174,12 +176,18 @@ void print_children(const wchar_t *parent_path, int depth, long long parent_tota
 
     item *curr = items;
     while (curr) {
-        print_item(depth, curr->name, curr->is_dir,
-                   curr->size, parent_total, bar_width);
+        const wchar_t *connector = (curr->next != NULL) ? L"├── " : L"└── ";
+        print_item(curr->name, curr->is_dir,
+                   curr->size, parent_total, bar_width,
+                   tree_prefix, connector);
 
         if (curr->is_dir) {
+            const wchar_t *suffix = (curr->next != NULL) ? L"│   " : L"    ";
+            wchar_t new_prefix[MAX_PATH];
+            _snwprintf(new_prefix, MAX_PATH, L"%s%s", tree_prefix, suffix);
+
             _snwprintf(fullpath, MAX_PATH, L"%s\\%s", parent_path, curr->name);
-            print_children(fullpath, depth + 1, curr->size, bar_width);
+            print_children(fullpath, curr->size, bar_width, new_prefix);
         }
 
         // 如果后面还有兄弟项，额外输出一个空行（视觉上空一行）
@@ -228,7 +236,7 @@ int main(void) {
     long long total = cache_sizes(real_path);
 
     // 直接输出子项（不输出根目录行）
-    print_children(real_path, 0, total, bar_width);
+    print_children(real_path, total, bar_width, L"");
 
     // 底部信息
     wprintf(L"-------------------------------------------------------------------------\n");
